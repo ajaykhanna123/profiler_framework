@@ -1,0 +1,11 @@
+Metadata-Version: 2.1
+Name: profiler-framework
+Version: 1.0.0
+Summary: A Python framework for memory and CPU profiling.
+Home-page: https://github.com/ajaykhanna123/profiler_framework
+Author: Ajay Khanna
+Author-email: ajaykhanna123ak@gmail.com
+Classifier: Programming Language :: Python :: 3
+Classifier: ..
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
