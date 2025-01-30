@@ -5,12 +5,12 @@ import asyncio
 def test_profiler():
     profiler = Profiler()
 
-    @profiler.track_memory
+    @profiler.track_performance
     def sample_function():
         a = [i for i in range(1000000)]
         return sum(a)
 
-    @profiler.track_memory_async
+    @profiler.track_performance_async
     async def sample_async_function():
         await asyncio.sleep(1)
         return "Done"

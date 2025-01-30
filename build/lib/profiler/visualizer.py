@@ -1,38 +1,46 @@
 import seaborn as sns
 import matplotlib.pyplot as plt
-import psutil
-import os
+import pandas as pd
+import json
 
-def visualize_usage(function_data):
-    """Visualize memory and CPU usage."""
-    process = psutil.Process(os.getpid())
-    memory_info = process.memory_info()
-    cpu_usage = process.cpu_percent(interval=1)
-
+def visualize_usage(log_file="profiler_log.json"):
+    """Visualize memory and CPU usage trends."""
+    with open(log_file, 'r') as f:
+        function_data = json.load(f)
+    
+    if not function_data:
+        print("No profiling data available.")
+        return
+    
+    df = pd.DataFrame(function_data)
     fig, ax = plt.subplots(2, 1, figsize=(12, 8))
-
-    # Memory Usage Visualization
-    memory_data = [memory_info.rss / (1024 ** 2), memory_info.vms / (1024 ** 2)]
-    memory_labels = ['RSS (MB)', 'VMS (MB)']
-    sns.barplot(x=memory_labels, y=memory_data, ax=ax[0])
-    ax[0].set_title("Memory Usage")
-    ax[0].set_ylabel("Memory (MB)")
-
-    # CPU Usage Visualization
-    ax[1].bar(['CPU Usage'], [cpu_usage])
-    ax[1].set_title("CPU Usage")
-    ax[1].set_ylabel("Percentage")
-
+    
+    sns.barplot(x='function', y='peak_memory', data=df, ax=ax[0])
+    ax[0].set_title("Peak Memory Usage per Function")
+    ax[0].set_ylabel("Memory (Bytes)")
+    
+    sns.barplot(x='function', y='cpu_usage', data=df, ax=ax[1])
+    ax[1].set_title("CPU Usage per Function")
+    ax[1].set_ylabel("CPU (%)")
+    
+    plt.xticks(rotation=45)
     plt.tight_layout()
     plt.show()
 
-def highlight_heaviest_function(function_data):
+def highlight_heaviest_function(log_file="profiler_log.json"):
+    """Highlight the function that consumed the most memory and CPU."""
+    with open(log_file, 'r') as f:
+        function_data = json.load(f)
+    
     if not function_data:
-        print("No function data recorded.")
+        print("No profiling data recorded.")
         return
+    
+    heaviest_memory = max(function_data, key=lambda x: x['peak_memory'])
+    heaviest_cpu = max(function_data, key=lambda x: x['cpu_usage'])
+    
+    print("Heaviest Memory Function:")
+    print(f"Function: {heaviest_memory['function']}, Peak Memory: {heaviest_memory['peak_memory']} bytes")
+    print("\nHeaviest CPU Function:")
+    print(f"Function: {heaviest_cpu['function']}, CPU Usage: {heaviest_cpu['cpu_usage']}%")
 
-    heaviest_function = max(function_data, key=lambda x: x['peak_memory'])
-    print("Heaviest Function:")
-    print(f"Function: {heaviest_function['function']}")
-    print(f"Peak Memory: {heaviest_function['peak_memory'] / (1024 ** 2):.2f} MB")
-    print(f"Execution Time: {heaviest_function['execution_time']:.2f} seconds")
