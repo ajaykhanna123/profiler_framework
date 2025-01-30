@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='profiler_framework',
-    version='1.0.0',
+    version='1.0.1',
     description='A Python framework for memory and CPU profiling.',
     author='Ajay Khanna',
     author_email='ajaykhanna123ak@gmail.com',
