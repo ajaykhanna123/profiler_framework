@@ -15,7 +15,7 @@ def visualize_usage(log_file="profiler_log.json"):
     df = pd.DataFrame(function_data)
     fig, ax = plt.subplots(2, 1, figsize=(12, 8))
     
-    sns.barplot(x='function', y='peak_memory', data=df, ax=ax[0])
+    sns.barplot(x='function', y='peak_memory_mb', data=df, ax=ax[0])
     ax[0].set_title("Peak Memory Usage per Function")
     ax[0].set_ylabel("Memory (Bytes)")
     
@@ -36,11 +36,11 @@ def highlight_heaviest_function(log_file="profiler_log.json"):
         print("No profiling data recorded.")
         return
     
-    heaviest_memory = max(function_data, key=lambda x: x['peak_memory'])
+    heaviest_memory = max(function_data, key=lambda x: x['peak_memory_mb'])
     heaviest_cpu = max(function_data, key=lambda x: x['cpu_usage'])
     
     print("Heaviest Memory Function:")
-    print(f"Function: {heaviest_memory['function']}, Peak Memory: {heaviest_memory['peak_memory']} bytes")
+    print(f"Function: {heaviest_memory['function']}, Peak Memory: {heaviest_memory['peak_memory_mb']} MB")
     print("\nHeaviest CPU Function:")
     print(f"Function: {heaviest_cpu['function']}, CPU Usage: {heaviest_cpu['cpu_usage']}%")
 
