@@ -1,4 +1,5 @@
 README.md
+pyproject.toml
 setup.py
 profiler/__init__.py
 profiler/core.py

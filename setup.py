@@ -9,9 +9,12 @@ setup(
     packages=find_packages(),
     url="https://github.com/ajaykhanna123/profiler_framework",
     install_requires=[
-        'psutil',
-        'seaborn',
-        'matplotlib',
+        "psutil>=5.8.0",
+        "pandas>=1.3.0",
+        "matplotlib>=3.4.0",
+        "seaborn>=0.11.0",
+        "tqdm>=4.60.0",
+        "pathvalidate>=2.5.0",
     ],
     classifiers=[
         'Programming Language :: Python :: 3',

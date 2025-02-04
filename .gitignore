@@ -1,4 +1,9 @@
-*.pyc
+# Python
 __pycache__/
-.env/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Reports
 reports/
