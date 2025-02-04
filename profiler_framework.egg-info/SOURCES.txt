@@ -2,6 +2,7 @@ README.md
 setup.py
 profiler/__init__.py
 profiler/core.py
+profiler/storage.py
 profiler/visualizer.py
 profiler/tests/__init__.py
 profiler/tests/test_core.py

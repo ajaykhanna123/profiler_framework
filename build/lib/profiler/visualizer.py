@@ -1,46 +1,177 @@
+import os
+import json
+import logging
+import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import pandas as pd
-import json
+import matplotlib.dates as mdates
+from tqdm import tqdm
+from pathvalidate import sanitize_filename
+from typing import Dict, List, Any
 
-def visualize_usage(log_file="profiler_log.json"):
-    """Visualize memory and CPU usage trends."""
-    with open(log_file, 'r') as f:
-        function_data = json.load(f)
-    
-    if not function_data:
-        print("No profiling data available.")
-        return
-    
-    df = pd.DataFrame(function_data)
-    fig, ax = plt.subplots(2, 1, figsize=(12, 8))
-    
-    sns.barplot(x='function', y='peak_memory_mb', data=df, ax=ax[0])
-    ax[0].set_title("Peak Memory Usage per Function")
-    ax[0].set_ylabel("Memory (Bytes)")
-    
-    sns.barplot(x='function', y='cpu_usage', data=df, ax=ax[1])
-    ax[1].set_title("CPU Usage per Function")
-    ax[1].set_ylabel("CPU (%)")
-    
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.show()
+logger = logging.getLogger(__name__)
 
-def highlight_heaviest_function(log_file="profiler_log.json"):
-    """Highlight the function that consumed the most memory and CPU."""
-    with open(log_file, 'r') as f:
-        function_data = json.load(f)
-    
-    if not function_data:
-        print("No profiling data recorded.")
-        return
-    
-    heaviest_memory = max(function_data, key=lambda x: x['peak_memory_mb'])
-    heaviest_cpu = max(function_data, key=lambda x: x['cpu_usage'])
-    
-    print("Heaviest Memory Function:")
-    print(f"Function: {heaviest_memory['function']}, Peak Memory: {heaviest_memory['peak_memory_mb']} MB")
-    print("\nHeaviest CPU Function:")
-    print(f"Function: {heaviest_cpu['function']}, CPU Usage: {heaviest_cpu['cpu_usage']}%")
+class Visualizer:
+    def __init__(self, report_dir: str = None, debug: bool = False):
+        self.report_dir = report_dir or os.path.join(os.getcwd(), "reports")
+        self.debug = debug
+        self._setup_paths()
+        self._configure_plot_style()
+        
+        if debug:
+            logging.basicConfig(level=logging.DEBUG)
+            pd.set_option("display.max_columns", None)
 
+    def _setup_paths(self) -> None:
+        """Initialize directory structure for outputs"""
+        self.json_dir = os.path.join(self.report_dir, "JsonData")
+        self.vis_dir = os.path.join(self.report_dir, "Visualization")
+        self.normal_dir = os.path.join(self.vis_dir, "NormalExecution")
+        self.overtime_dir = os.path.join(self.vis_dir, "OverTime")
+        
+        for path in [self.vis_dir, self.normal_dir, self.overtime_dir]:
+            os.makedirs(path, exist_ok=True)
+
+    def _configure_plot_style(self) -> None:
+        """Set consistent visualization style"""
+        plt.style.use("ggplot")
+        sns.set_theme(
+            style="whitegrid",
+            palette="husl",
+            font_scale=1.1,
+            rc={
+                "figure.figsize": (12, 6),
+                "axes.titlesize": 14,
+                "axes.labelsize": 12,
+                "xtick.labelsize": 10,
+                "ytick.labelsize": 10,
+                "legend.fontsize": 10,
+                "grid.alpha": 0.3,
+            }
+        )
+
+    def _load_data(self, filename: str) -> List[Dict[str, Any]]:
+        """Safely load JSON data with error handling"""
+        filepath = os.path.join(self.json_dir, filename)
+        try:
+            if os.path.exists(filepath):
+                with open(filepath, "r") as f:
+                    return json.load(f)
+            return []
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.error(f"Error loading {filepath}: {str(e)}")
+            return []
+
+    def _clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Clean and prepare data for visualization"""
+        numeric_cols = ["peak_memory_mb", "cpu_usage", "execution_time"]
+        df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
+        df["timestamp"] = pd.to_datetime(df["timestamp"], utc=True, errors="coerce")
+        return df.dropna(subset=numeric_cols + ["timestamp"])
+
+    def visualize_usage(self) -> None:
+        """Generate bar charts for latest execution metrics"""
+        data = self._load_data("profiler_log.json")
+        if not data:
+            logger.info("No profiling data available for visualization")
+            return
+
+        df = self._clean_data(pd.DataFrame(data))
+        if df.empty:
+            return
+
+        # Get latest entry per function
+        df_latest = df.sort_values("timestamp").drop_duplicates("function", keep="last")
+        
+        metrics = {
+            "peak_memory_mb": "Peak Memory Usage (MB)",
+            "cpu_usage": "CPU Usage (%)",
+            "execution_time": "Execution Time (seconds)"
+        }
+
+        for metric, title in metrics.items():
+            plt.figure()
+            ax = sns.barplot(x="function", y=metric, data=df_latest)
+            ax.set_title(f"Latest {title} by Function")
+            ax.set_xlabel("Function Name")
+            ax.set_ylabel(title)
+            plt.xticks(rotation=45, ha="right")
+            
+            filename = sanitize_filename(f"latest_{metric}.png", replacement_text="_")
+            plt.savefig(os.path.join(self.normal_dir, filename), 
+                       bbox_inches="tight", dpi=150)
+            plt.close()
+
+        logger.info(f"Saved normal execution reports to {self.normal_dir}")
+
+    def visualize_over_time(self) -> None:
+        """Generate time-series plots for historical metrics"""
+        time_series_data = self._load_data("profiler_time_series.json")
+        if not time_series_data:
+            logger.info("No time series data available")
+            return
+
+        for func_key, records in tqdm(time_series_data.items(), desc="Processing functions"):
+            try:
+                df = pd.DataFrame(records)
+                df = self._clean_data(df)
+                if df.empty:
+                    continue
+
+                filename = sanitize_filename(df["file"].iloc[0].replace(".py", ""), replacement_text="_")
+                func_name = sanitize_filename(df["function"].iloc[0], replacement_text="_")
+                self._plot_time_series(df, filename, func_name)
+                
+            except Exception as e:
+                logger.error(f"Error processing {func_key}: {str(e)}")
+
+    def _plot_time_series(self, df: pd.DataFrame, filename: str, func_name: str) -> None:
+        """Create comprehensive time-series visualizations"""
+        metric_dirs = {
+            "cpu": os.path.join(self.overtime_dir, "cpu"),
+            "memory": os.path.join(self.overtime_dir, "memory"),
+            "execution_time": os.path.join(self.overtime_dir, "execution_time"),
+            "combined": os.path.join(self.overtime_dir, "combined")
+        }
+        
+        for dir_path in metric_dirs.values():
+            os.makedirs(dir_path, exist_ok=True)
+
+        # Individual metric plots
+        metrics = [
+            ("cpu_usage", "CPU Usage (%)", "cpu"),
+            ("peak_memory_mb", "Memory Usage (MB)", "memory"),
+            ("execution_time", "Execution Time (seconds)", "execution_time")
+        ]
+
+        for metric, ylabel, subdir in metrics:
+            plt.figure(figsize=(10, 5))
+            sns.lineplot(x="timestamp", y=metric, data=df, marker="o")
+            plt.title(f"{filename} - {func_name}\n{ylabel}")
+            plt.xlabel("Timestamp")
+            plt.ylabel(ylabel)
+            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d\n%H:%M"))
+            
+            plot_name = sanitize_filename(f"{filename}_{func_name}_{metric}.png")
+            plt.savefig(os.path.join(metric_dirs[subdir], plot_name), 
+                       bbox_inches="tight", dpi=150)
+            plt.close()
+
+        # Combined plot
+        plt.figure(figsize=(14, 10))
+        plt.suptitle(f"{filename} - {func_name}", y=1.02)
+        
+        for idx, (metric, ylabel, subdir) in enumerate(metrics, 1):
+            plt.subplot(3, 1, idx)
+            sns.lineplot(x="timestamp", y=metric, data=df, marker="o")
+            plt.title(ylabel)
+            plt.xlabel("")
+            plt.ylabel(ylabel)
+            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m-%d\n%H:%M"))
+        
+        combined_name = sanitize_filename(f"{filename}_{func_name}_combined.png")
+        plt.savefig(os.path.join(metric_dirs["combined"], combined_name),
+                  bbox_inches="tight", dpi=150)
+        plt.close()
+
+        logger.debug(f"Generated reports for {filename}:{func_name}")
